@@ -1,0 +1,151 @@
+;Lethycia Venturini Ferreira - Eng. Mecatronica
+
+            INCLUDE 'derivative.inc'
+            XDEF _Startup, main
+            
+            MY_ZEROPAGE: SECTION  SHORT 
+            ;VARIAVEIS RAM
+
+HORA: DS 1
+MIN: DS 1
+SEG: DS 1
+TEMPO: DS 1
+LEITURAAD: DS 2
+DIVIDE: DS 1
+DECEN: DS 1
+
+TEMPO2: DS 1              
+VARPWM: DS 1
+
+  
+MyCode:     SECTION
+main:
+_Startup:
+          ;PROGRAMA E CONSTANTES  
+CONFIGURA:
+       MOV #$0, CONFIG2
+       MOV #$19, CONFIG1
+       MOV #$30, TSC   ;PARAR E RESETAR
+       MOV #$42, TSC   ;ROTTIMER HABILITADA /4
+       LDHX #1000
+       STHX TMODH      ;/800 INTERRUPCOES/SEG
+       LDHX #500
+       STHX TCH0H     ;DC=50%
+       MOV #$5E, TSC0 ;ATIVA EM 0 COM INTERRUPCAO  
+       LDHX #0
+       STHX TCH1H
+       MOV #$5A, TSC1 ;ATIVA EM 1 COM INTERRUPCAO
+       CLR TEMPO
+       CLR DIVIDE
+       MOV #$11, HORA
+       MOV #1, MIN
+       CLR SEG
+       CLR DECEN
+       MOV #1, VARPWM
+       MOV #$60, ADICLK   ;40Mseg
+       CLI
+       
+INICIO:
+  MOV #$5, TEMPO
+  JSR MOSTRAPWM  
+L1:
+  LDA TEMPO
+  BNE L1
+  BRA INICIO
+
+CONVAD:
+  MOV #2,ADSCR ;INICIAR CONVERSAO NO PTA4
+  ;POOLING
+AGUARDA:
+  BRCLR 7, ADSCR, AGUARDA
+  MOV ADR, LEITURAAD
+  RTS
+  
+MOSTRAPWM:
+  BRSET 0, VARPWM, DC0
+  BRSET 1, VARPWM, DC30
+  BRSET 2, VARPWM, DC60
+  BRSET 3, VARPWM, DC80
+  BRSET 4, VARPWM, DC100
+DC0:  
+  LDHX #0
+  STHX TCH1H
+  LSL VARPWM    
+  RTS 
+DC30:
+  LDHX #300
+  STHX TCH1H
+  LSL VARPWM
+  RTS 
+DC60:  
+  LDHX #600
+  STHX TCH1H
+  LSL VARPWM 
+  RTS 
+DC80:  
+  LDHX #800
+  STHX TCH1H
+  LSL VARPWM
+  RTS 
+DC100:  
+  BSET 0,TSC1
+  LSL VARPWM
+  BSET 0, VARPWM   
+  RTS 
+
+ROTTIMER:
+    DEC TEMPO2
+    LDA DIVIDE
+    INCA
+    STA DIVIDE
+    CMP #8
+    BNE SAIROT    ;DIVIDE/8
+    CLR DIVIDE
+    LDA DECEN
+    ADD #1
+    DAA
+    STA DECEN
+    BNE SAIROT
+    DEC TEMPO
+    LDA SEG 
+    ADD  #1
+    DAA 
+    STA SEG 
+    CMP #$60
+    BNE SAIROT
+    CLR SEG 
+    DEC TEMPO
+    LDA MIN 
+    ADD  #1
+    DAA 
+    STA MIN 
+    CMP #$60
+    BNE SAIROT
+    CLR MIN
+    DEC TEMPO
+    LDA HORA 
+    ADD  #1
+    DAA 
+    STA HORA 
+    CMP #$24
+    BNE SAIROT
+    CLR HORA
+    
+SAIROT:
+    BCLR 7, TSC ;TIRA PENDENCIA
+    RTI
+ROTCH0:
+    BCLR 7, TSC0
+    RTI
+ROTCH1:
+    BCLR 7, TSC1
+    RTI
+
+    ORG $FFF4 ;VECTOR 5 CH1 TIMER
+    DC.W ROTCH1
+    ORG $FFF6 ;VECTOR 4 CH0 TIMER
+    DC.W ROTCH0
+    ORG $FFF2;VECTOR 6 TIMER
+    DC.W ROTTIMER   
+
+ END  
